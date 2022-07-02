@@ -14,14 +14,13 @@ import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.RSAPublicKeySpec;
 import java.security.spec.X509EncodedKeySpec;
-import java.util.Base64;
-import java.util.Calendar;
-import java.util.HashMap;
-import java.util.Map;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.*;
 
 public class JwtTokenUtils {
 
-    private static final int EXPIRE_DAY = 1;
+    private static final int EXPIRE_SECOND;
     private static final String RSA_PUBLIC_KEY; //"MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAscBfdluf9/ViJi3+1A1tix+YzFZ7heEdtP1MuvTKdKwi5dBK7+xa2RTRAG7Ii8jkHn3hF7x8BbTPzm6MDzDMPt+MRSTEJNJmL7dcYEVnPQkSnEB6lEv6DKbzJfbUaUOfN2XanWTjgAsEHOvq24JC8onVP15Z+1v6ze4dv/A1ubwLDhIXFvDcp3yM/M63YdU4/0xW9lpxvKkTRjovsuppa7kVuuZfaI56Nm0v9pWx6TMqpcTe7KT9ugy11WJLwXuw4YpjapZwFYaiNQ25Qln0DBkQ1UFtsp8Uh9e/c/b+RgfnzLHrZqb2s30fsp+pFoudFwtxH3YL5lpE7zRQTgRzwwIDAQAB";
 
 
@@ -31,42 +30,34 @@ public class JwtTokenUtils {
         try {
             RSA_PRIVATE_KEY = VersePropertyUtils.getLocalProperty("jwt.private.key");
             RSA_PUBLIC_KEY = VersePropertyUtils.getLocalProperty("jwt.public.key");
+            EXPIRE_SECOND = Integer.parseInt(VersePropertyUtils.getLocalProperty("jwt.expire.second"));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
 
-
-    public static String createToken(String username, int time, int expireType) throws NoSuchAlgorithmException {
-        Calendar instance = Calendar.getInstance();
-        instance.add(time, expireType);
+    public static String createToken(String username, long second) throws NoSuchAlgorithmException {
+        LocalDateTime localDateTime = LocalDateTime.now().plusSeconds(second);
+        Date date = Date.from(localDateTime.atZone(ZoneId.systemDefault()).toInstant());
         String token = JWT.create()
                 .withClaim("username", username)
-                .withExpiresAt(instance.getTime())
+                .withExpiresAt(date)
                 .sign(Algorithm.RSA256(null, StringToPrivateKey(RSA_PRIVATE_KEY)));
         return token;
     }
 
     public static String createToken(String username) throws NoSuchAlgorithmException {
-        Calendar instance = Calendar.getInstance();
-        instance.add(Calendar.DATE, EXPIRE_DAY);
+        LocalDateTime localDateTime = LocalDateTime.now().plusSeconds(60 * 60);
+        Date date = Date.from(localDateTime.atZone(ZoneId.systemDefault()).toInstant());
         String token = JWT.create()
                 .withClaim("username", username)
-                .withExpiresAt(instance.getTime())
+                .withExpiresAt(date)
                 .sign(Algorithm.RSA256(null, StringToPrivateKey(RSA_PRIVATE_KEY)));
         return token;
     }
 
     public static DecodedJWT verify(String token) {
         DecodedJWT decode = JWT.decode(token);
-        String header = decode.getHeader();
-        String payload = decode.getPayload();
-        String signature = decode.getSignature();
-        Claim username = decode.getClaim("username");
-        System.out.println(username.asString());
-        System.out.println(header);
-        System.out.println(payload);
-        System.out.println(signature);
         Algorithm algorithm = Algorithm.RSA256(StringToPublicKey(RSA_PUBLIC_KEY), null);
         algorithm.verify(decode);
         return decode;
